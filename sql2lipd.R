@@ -18,8 +18,150 @@ sapropel <- all$SAPROPEL #Sapropel identification by depth.. Should be worked in
 
 
 
-#Publications will correspond to LiPD files. This simplifies things a little bit.
-
+#Cores will correspond to lipd files.
+for(s in 1:nrow(core)){
+  
+  #GEO
+  geo <- list()
+  geo$siteName <- core$Name[s]
+  geo$latitude <- core$Latitude[s]
+  geo$longitude <- core$Longitude[s]
+  geo$elevation <- core$Depth[s]
+  geo$region <- core$RegionName[s]
+  geo$project <- core$ProjectName[s]
+  
+  
+  #restrict to this core
+  thisObs <- filter(mea_sample,CoreID == core$CoreID[s])
+  
+  
+  #PUBS 
+  #loop through associated publications
+  which.pubs <- which(paper$PaperID %in% thisObs$PaperID)
+  
+  pub <- vector(mode = "list",length = length(which.pubs))
+  for(p in which.pubs){
+    
+    wp <- which(p %in% which.pubs)
+    
+    #PUB
+    pub[[wp]]$author <- str_replace_all(paper$Citation[p],pattern = ",",replacement = " and ") %>% 
+      str_replace_all(pattern = "  ",replacement = " ") %>%  
+      str_replace_all(pattern = '"',replacement = "") 
+    
+    try(pub[[wp]]$year <- lubridate::year(paper$Year[p]))
+    if(is.null)
+    pub[[wp]]$title <- paper$Title[p]
+    pub[[wp]]$journal <- paper$Journal[p]
+    pub[[wp]]$issue <- paper$Issues[p]
+    pub[[wp]]$volume <- paper$Volume[p]
+    pub[[wp]]$pages <- paper$Pages[p]
+    
+    pub[[wp]]$DOI <- str_remove(paper$Doi[p],pattern ="^(.+?)(?=10.)")
+    
+    if(wp==1){
+      firstAuthor <-  str_remove(paper$Author[p],pattern ="^(.+)(?= )") %>% 
+        str_remove(pattern = " ")
+    }
+    #Connect publication to observations
+    
+  }
+  
+  ##BASE
+  dataSetName <-  stringr::str_remove_all(stringr::str_c(geo$siteName,firstAuthor,pub[[p]]$year,sep = "."),pattern = " ")
+  
+  ##PaleoData
+  
+  pmt <- vector(mode = "list",length = 1)
+  
+  #try to build table
+  mt <- dcast(thisObs, DepthStart ~ MeasurementID,value.var = "Value")
+  de <- dcast(thisObs, DepthEnd ~ MeasurementID,value.var = "Value")
+  
+  mt$depthEnd <- de$depthEnd
+  
+  #get Id table
+  mids <- unique(thisObs$MeasurementID)
+  this.meas <- filter(measurement,MeasurementID == mids)  
+  
+#loop through columns
+  for(col in 1:nrow(this.meas)){
+    tc <- list()#create an empty list
+    #COLUMN META
+    tc$variableName <- this.meas$Name[col]
+    tc$units <- this.meas$Units[col]
+    tc$description <- this.meas$Description[col]
+    tc$variableType <- "measured"
+    tc$proxyObservationType <- this.meas$Class[col]
+    tc$proxyObservationTypeDetail <- this.meas$SubClass[col]
+    tc$measurementMaterial <- this.meas$Material[col]
+    tc$measurementMethod <- this.meas$Method[col]
+    
+    #add in the data
+    tc$values <- as.matrix(mt[as.character(this.meas$MeasurementID[col])])
+    
+    
+    if(!all(is.na(tc$values))){      #plop into the measuermentTable
+      pmt[[1]][[tc$variableName]] <- tc
+    }
+    
+  }
+  
+  
+  #repeat for uncertainty...
+  der <- dcast(thisObs, DepthEnd ~ MeasurementID,value.var = "_DeltaError")
+  der$depthEnd <- de$depthEnd
+  
+  #loop through columns
+  for(col in 1:nrow(this.meas)){
+    tc <- list()#create an empty list
+    #COLUMN META
+    tc$variableName <- str_c(this.meas$Name[col],"Uncertainty")
+    tc$units <- "unitless"
+    tc$description <- str_c("Uncertainty on ",this.meas$Name[col])
+    tc$variableType <- "sampleMetadata"
+    
+    #add in the data
+    tc$values <- as.matrix(der[as.character(this.meas$MeasurementID[col])])
+    
+    
+    if(!all(is.na(tc$values) | tc$values == 0)){      #plop into the measuermentTable
+      pmt[[1]][[tc$variableName]] <- tc
+    }
+    
+  }
+  
+  #repeat for notes...
+  notes <- dcast(thisObs, DepthEnd ~ MeasurementID,value.var = "_Notes")
+  notes$depthEnd <- de$depthEnd
+  
+  #loop through columns
+  for(col in 1:nrow(this.meas)){
+    tc <- list()#create an empty list
+    #COLUMN META
+    tc$variableName <- str_c(this.meas$Name[col],"Notes")
+    tc$units <- "unitless"
+    tc$description <- str_c("Notes for ",this.meas$Name[col])
+    tc$variableType <- "sampleMetadata"
+    
+    #add in the data
+    tc$values <- as.matrix(notes[as.character(this.meas$MeasurementID[col])])
+    
+    
+    if(!all(is.na(tc$values) | tc$values == 0)){      #plop into the measuermentTable
+      pmt[[1]][[tc$variableName]] <- tc
+    }
+    
+  }
+  
+  ##end paleo data
+  
+  
+  
+  
+  
+  
+}
 
 
 
@@ -39,67 +181,10 @@ nc.chron.lam <- read_csv(here("sisal2lipd_names_chron_lam.csv")) %>%
   filter(!is.na(lipd))
 #assign in data.frames
 
-sites <- all$site#each site
-entity <- all$entity #each speleothem/collection?
-elr <- all$entity_link_reference #links entities to references
-pubs <- all$reference
-sample <- all$sample
-d18O <- all$d18O
-d13C <- all$d13C
-dating <- all$dating
-datingLamina <- all$dating_lamina
-origDates <- all$original_chronology
-
 #loop through sites
 for(s in 19:nrow(sites)){
-  #for(s in 1:10){
-  #GEO
-  geo <- list()
-  geo$siteName <- sites$site_name[s]
-  geo$latitude <- sites$latitude[s]
-  geo$longitude <- sites$longitude[s]
-  geo$elevation <- sites$elevation[s]
-  geo$sisalSiteId <- sites$site_id[s]
-  geo$geology <- sites$geology[s]
-  geo$rockAge <- sites$rock_age[s]
-  geo$hasMonitoring <- sites$monitoring[s]
   
-  #get entities for site
-  this.ent <- dplyr::filter(entity,site_id == geo$sisalSiteId)#connect this site to it's stals
-  this.elr <- dplyr::filter(elr,entity_id %in% this.ent$entity_id)#connect these stals to their pubs
-  this.pub <- dplyr::filter(pubs,ref_id %in% this.elr$ref_id)#grab the pubs in this site
-  
-  #count number of unique pubs
-  this.elr$thisRefId <- NA
-  this.elr$thisRefId[1] <- 1
-  if(nrow(this.elr)>1){
-    for(i in 2:nrow(this.elr)){
-      if(any(this.elr$ref_id[i] %in% this.elr$ref_id[1:(i-1)])){
-        this.elr$thisRefId[i] <- this.elr$thisRefId[min(which(this.elr$ref_id[i] == this.elr$ref_id[1:(i-1)]))]
-      }else{
-        this.elr$thisRefId[i] <- max(this.elr$thisRefId[1:(i-1)])+1
-      }
-    }
-  }
-  #PUB
-  pub <- vector(mode = "list",length = nrow(this.pub))
-  for(p in 1:nrow(this.pub)){
-    pub[[p]]$citation <- this.pub$citation[p]
-    pub[[p]]$DOI <- this.pub$publication_DOI[p]
-    re <- gregexpr(pattern = "[1-2][0-9][0-9][0-9]",pub[[p]]$citation)
-    
-    pub[[p]]$year <- as.numeric(stringr::str_sub(pub[[p]]$citation,start = re[[1]][1],end = re[[1]][1]+3))
-  }
-  if(length(pub)>0){#grab the first author for later
-    split <- (stringr::str_split(pub[[1]]$citation,","))
-    sl <- sapply(split,stringr::str_length)
-    firstAuthor <- split[[1]][min(which(sl>=3))]
-    pubYear1 <-  pub[[1]]$year
-  }
-  
-  #BASE
-  dataSetName <-  stringr::str_remove_all(stringr::str_c(geo$siteName,firstAuthor,pub[[p]]$year,sep = "."),pattern = " ")
-  
+
   #PALEODATA
   pmt <- vector(mode = "list",length = nrow(this.ent))
   for(e in 1:nrow(this.ent)){#create a measurement table for every entry
