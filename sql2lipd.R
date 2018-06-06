@@ -122,6 +122,21 @@ for(s in 1:nrow(core)){
     pmt[[1]][[tc$variableName]] <- tc
   }
   
+  #assign in depthMid
+  tc <- list()
+  tc$variableName <- "depth"
+  tc$units <- "mbsf"
+  tc$description <- "middle depth, the average of top and bottom depth"
+  tc$variableType <- "measured"
+  tc$proxyObservationType <- "depth"
+  
+  #add in the data
+  tc$values <- as.matrix(mt$DepthMid)
+  if(!all(is.na(tc$values))){      #plop into the measuermentTable
+    pmt[[1]][[tc$variableName]] <- tc
+  }
+  
+  
   #assign in depthBottom
   tc <- list()
   tc$variableName <- "depthBottom"
@@ -161,7 +176,10 @@ for(s in 1:nrow(core)){
   for(col in 1:nrow(this.meas)){
     tc <- list()#create an empty list
     #COLUMN META
-    tc$variableName <- this.meas$Name[col]
+    tc$variableName <- this.meas$Name[col] %>% 
+      str_replace_all(pattern = "[?]",replacement = "d") %>% 
+      str_replace_all(pattern = " ",replacement = "_")
+      
     tc$units <- this.meas$Units[col]
     tc$description <- this.meas$Description[col]
     tc$variableType <- "measured"
@@ -189,7 +207,11 @@ for(s in 1:nrow(core)){
   for(col in 1:nrow(this.meas)){
     tc <- list()#create an empty list
     #COLUMN META
-    tc$variableName <- str_c(this.meas$Name[col],"_Uncertainty")
+    tc$variableName <- str_c(this.meas$Name[col],"_Uncertainty") %>% 
+      str_replace_all(pattern = "[?]",replacement = "d") %>% 
+      str_replace_all(pattern = " ",replacement = "_")
+    
+    
     tc$units <- "unitless"
     tc$description <- str_c("Uncertainty on ",this.meas$Name[col])
     tc$variableType <- "sampleMetadata"
@@ -212,7 +234,9 @@ for(s in 1:nrow(core)){
   for(col in 1:nrow(this.meas)){
     tc <- list()#create an empty list
     #COLUMN META
-    tc$variableName <- str_c(this.meas$Name[col],"_Notes")
+    tc$variableName <- str_c(this.meas$Name[col],"_Notes") %>% 
+      str_replace_all(pattern = "[?]",replacement = "d") %>% 
+      str_replace_all(pattern = " ",replacement = "_")
     tc$units <- "unitless"
     tc$description <- str_c("Notes for ",this.meas$Name[col])
     tc$variableType <- "sampleMetadata"
