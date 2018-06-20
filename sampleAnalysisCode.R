@@ -16,6 +16,8 @@ TS <- extractTs(D)
 #lump sapropel names
 TS <- lumpTsMetaVariables(TS, sc = "sapropelName")
 
+#get only those that have age 
+TS.age <- TS[!sapply(sapply(TS,"[[","age"),is.null)]
 
 ###EXAMPLE 1, produce plots of all d18O data, and sapropel identification
 
@@ -91,5 +93,34 @@ tts$normalizedDepth[which(tts$sapropelName=="S1")] = sdf$normalizedDepth
 #assign back in
 TS[[hasSap[i]]] <- tts
 }
+
+###EXAMPLE 3### bin TOC by AGE
+binvec <- seq(0,10,0.1) #set up bins, 0 to 10000 yr BP with 100 year steps...
+
+#pull out TOC
+TS.TOC <- filterTs(TS.age,"paleoData_variableName == TOC") 
+  
+binned.TS = binTs(TS.TOC,binvec = binvec,timeVar = "age")
+binYear <- binned.TS[[1]]$time
+tocMat <- matrix(NA,ncol = length(binned.TS),nrow = length(binYear))
+for(i in 1:ncol(tocMat)){
+  if(!all(is.nan(binned.TS[[i]]$matrix))){
+  tocMat[,i] <- binned.TS[[i]]$matrix
+  }
+}
+#zscore
+tocMatScaled <- scale(tocMat,scale = T,center = F)
+
+#plot it.
+ggplot()+geom_line(aes(x= binYear, y =rowMeans(tocMat,na.rm = T) , colour = "Raw TOC"))+
+  geom_line(aes(x= binYear, y =rowMeans(tocMatScaled,na.rm = T), colour = "Scaled TOC" ))+
+  xlab("age (ka)")+ylab("TOC")
+
+#pull out coordinates for mapping
+lat <- sapply(TS.TOC,"[[","geo_latitude")
+lon <- sapply(TS.TOC,"[[","geo_longitude")
+
+
+
 
 

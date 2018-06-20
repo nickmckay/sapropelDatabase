@@ -1,6 +1,7 @@
 #turn sql structure into LiPD files.
 library(here)
 library(tidyverse)
+library(reshape2)
 library(magrittr)
 library(lipdR)
 load(here("allTables.RData"))
@@ -16,7 +17,8 @@ project <- all$PROJECT #collection meta
 region <- all$REGION #Region names...
 sapropel <- all$SAPROPEL #Sapropel identification by depth.. Should be worked into measurement tables?
 
-
+#change the name of the age column...
+measurement$Name[which(measurement$Name=="Cal yrs")] <- "age"
 
 # #load in name converter
 # nc <- read_csv(here("sisal2lipd_names.csv")) %>% 
@@ -90,9 +92,9 @@ for(s in 1:nrow(core)){
   
   thisObs <- mutate(thisObs, DepthMid = (DepthStart+DepthEnd)/2)
   #try to build table
-  mt <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "Value")
-  dsC <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "DepthStart")
-  deC <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "DepthEnd")
+  mt <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "Value",fun.aggregate = mean)
+  dsC <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "DepthStart",fun.aggregate = mean)
+  deC <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "DepthEnd",fun.aggregate = mean)
   
   if(ncol(dsC)>2){
   mt$DepthStart <- rowMeans(dsC[,-1],na.rm=T)
@@ -180,13 +182,25 @@ for(s in 1:nrow(core)){
       str_replace_all(pattern = "[?]",replacement = "d") %>% 
       str_replace_all(pattern = " ",replacement = "_")
       
+    if(tc$variableName=="age"){
+      print(paste(dataSetName,"has age"))
+    }
+    
     tc$units <- this.meas$Units[col]
     tc$description <- this.meas$Description[col]
     tc$variableType <- "measured"
-    tc$proxyObservationType <- this.meas$Class[col]
+    if(this.meas$Class[col]!=""){
+      tc$proxyObservationType <- this.meas$Class[col]
+    }
+    if(this.meas$SubClass[col]!=""){
     tc$proxyObservationTypeDetail <- this.meas$SubClass[col]
+    }
+    if(this.meas$Material[col]!=""){
     tc$measurementMaterial <- this.meas$Material[col]
+    }
+    if(this.meas$Method[col]!=""){
     tc$measurementMethod <- this.meas$Method[col]
+    }
     
     #add in the data
     tc$values <- as.matrix(mt[as.character(this.meas$MeasurementID[col])])
@@ -200,7 +214,8 @@ for(s in 1:nrow(core)){
   
   
   #repeat for uncertainty...
-  der <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "DeltaError") %>% left_join(mt,der,by = "DepthMid")
+  der <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "DeltaError",fun.aggregate = mean) %>% 
+    left_join(mt,der,by = "DepthMid")
   
   
   #loop through columns
@@ -227,7 +242,7 @@ for(s in 1:nrow(core)){
   }
   
   #repeat for notes...
-  notes <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "Notes") %>% left_join(mt,notes,by = "DepthMid")
+  notes <- dcast(thisObs, DepthMid ~ MeasurementID,value.var = "Notes",fun.aggregate = mean) %>% left_join(mt,notes,by = "DepthMid")
 
   
   #loop through columns
