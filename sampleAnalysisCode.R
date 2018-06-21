@@ -121,6 +121,33 @@ lat <- sapply(TS.TOC,"[[","geo_latitude")
 lon <- sapply(TS.TOC,"[[","geo_longitude")
 
 
+#melt matrix...
+tocMelt <- melt(tocMat,varnames = c("ageIndex","coreIndex"))
+tocMelt$age <- binYear[tocMelt$ageIndex]
+tocMelt$lat <- lat[tocMelt$coreIndex]
+tocMelt$lon <- lon[tocMelt$coreIndex]
+names(tocMelt)[3] <- "TOC"
+
+#map a timestep
+
+thisAge <- 4.05
+
+thisMap <- filter(tocMelt, near(age,thisAge) ) %>% 
+  na.omit()
+
+sapMap <- baseMap(lon,lat) + 
+  geom_point(thisMap,mapping = aes(x = lon,y = lat), colour = "black",size = 7)+#add a black ring
+  geom_point(thisMap,mapping = aes(x = lon,y = lat, colour = TOC),size = 6)+
+  scale_color_distiller(palette = "YlOrRd",trans = "reverse")+
+  ggtitle(paste0("TOC - ",as.character(thisAge)," ka"))
+sapMap
+
+
+
+
+
+
+
 
 
 
